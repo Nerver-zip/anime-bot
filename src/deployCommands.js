@@ -14,7 +14,7 @@ for (const file of commandFiles) {
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-(async () => {
+async function deployCommands(){
     try {
         console.log(`Iniciando o registro de ${commands.length} comandos (/) de aplicação.`);
 
@@ -27,4 +27,6 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
     } catch (error) {
         console.error(error);
     }
-})();
+};
+
+module.exports = deployCommands;

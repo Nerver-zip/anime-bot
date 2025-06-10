@@ -1,16 +1,15 @@
-const connectToDB = require('./db/connect.js'); // Sua função de conexão com o DB
+const connectToDB = require('./db/connect.js');
 const dotenv = require('dotenv');
-dotenv.config(); // Carrega as variáveis do arquivo .env
+dotenv.config();
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
+const express = require('express');
+const deployCommands = require('./deployCommands.js');
 
-// Pega o token do arquivo .env
 const token = process.env.DISCORD_TOKEN;
 
-// Cria uma nova instância do cliente do bot
-// GatewayIntentBits.Guilds é o mínimo necessário para o bot funcionar
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 // --- Carregador de Comandos ---
@@ -71,9 +70,22 @@ const start = async () => {
         // 1. Conecta ao Banco de Dados
         await connectToDB(process.env.MONGO_URI);
         console.log('✅ Conectado ao MongoDB com sucesso!');
-
-        // 2. Faz o login do bot no Discord
+        // 2. Atualiza comandos
+        await deployCommands();
+        // 3. Faz o login do bot no Discord
         client.login(token);
+
+        // 4. Inicia o servidor web simples para o Health Check do Cloud Run
+        const app = express();
+        const port = process.env.PORT || 8080;
+
+        app.get('/', (_, res) => {
+            res.status(200).send({ status: 'ok', message: `Bot ${client.user.tag} está online.` });
+        });
+
+        app.listen(port, () => {
+            console.log(`✅ Servidor web para health check rodando na porta ${port}`);
+        });
 
     } catch (error) {
         console.error('❌ Falha ao iniciar o bot:', error);
