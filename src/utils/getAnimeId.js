@@ -1,5 +1,3 @@
-// utils/getAnimeId.js
-
 const dotenv = require('dotenv');
 dotenv.config();
 
@@ -16,7 +14,6 @@ async function getAnimeId(animeName) {
 
     console.log(`[API] Buscando por "${animeName}"...`);
 
-    // Otimização: Usamos limit=1 pois só queremos o resultado mais relevante (o primeiro).
     const url = `https://api.myanimelist.net/v2/anime?q=${encodeURIComponent(animeName)}&limit=1`;
 
     try {
@@ -33,10 +30,6 @@ async function getAnimeId(animeName) {
         const data = await response.json();
         
         // --- PARA OBSERVAR A RESPOSTA COMPLETA DA API ---
-        // Descomente a linha abaixo para ver tudo que a API retornou
-        // console.log('[API] Resposta completa recebida:', JSON.stringify(data, null, 2));
-        // ----------------------------------------------------
-
         // Verificamos se a API retornou algum resultado na lista 'data'
         if (data.data && data.data.length > 0) {
             // O primeiro item (data.data[0]) é o resultado mais relevante.
@@ -57,8 +50,6 @@ async function getAnimeId(animeName) {
 
 
 // --- BLOCO DE TESTE ---
-// Esta parte só será executada quando você rodar o arquivo diretamente.
-// Ela não atrapalhará quando você importar a função em outros arquivos.
 if (require.main === module) {
     (async () => {
         // Altere o nome aqui para testar diferentes animes
@@ -78,6 +69,4 @@ if (require.main === module) {
     })();
 }
 
-
-// Exporta a função para poder usá-la em seus comandos do Discord
 module.exports = {getAnimeId};

@@ -1,5 +1,3 @@
-// utils/getCurrentEpisodeCount.js
-
 /**
  * Usando a API Jikan, busca o número de episódios que já foram ao ar para um anime.
  * @param {string|number} malId - O ID do anime no MyAnimeList.
@@ -11,7 +9,6 @@ async function getCurrentEpisodeCount(malId) {
         return null;
     }
 
-    // Usamos o endpoint de episódios da Jikan API.
     const url = `https://api.jikan.moe/v4/anime/${malId}/episodes`;
     
     console.log(`[Jikan API] Buscando contagem de episódios para o ID: ${malId}...`);
@@ -25,11 +22,10 @@ async function getCurrentEpisodeCount(malId) {
 
         const data = await response.json();
 
-        // O número de episódios lançados é simplesmente o tamanho da lista 'data'.
         if (data.data && Array.isArray(data.data)) {
             return data.data.length;
         } else {
-            return 0; // Se não houver dados, retorna 0.
+            return 0;
         }
 
     } catch (error) {
@@ -37,7 +33,6 @@ async function getCurrentEpisodeCount(malId) {
         return null;
     }
 }
-
 
 // --- BLOCO DE TESTE ---
 if (require.main === module) {
@@ -59,4 +54,4 @@ if (require.main === module) {
     })();
 }
 
-module.exports = {getCurrentEpisodeCount};
+module.exports = getCurrentEpisodeCount;

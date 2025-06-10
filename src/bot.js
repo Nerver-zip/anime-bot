@@ -37,20 +37,31 @@ client.once(Events.ClientReady, c => {
 });
 
 // --- Listener de Interação ---
-client.on(Events.InteractionCreate, async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-    const command = interaction.client.commands.get(interaction.commandName);
-    if (!command) {
-        console.error(`Nenhum comando correspondente a ${interaction.commandName} foi encontrado.`);
-        return;
+client.on('interactionCreate', async interaction => {
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    // Trata autocomplete
+    if (interaction.isAutocomplete()) {
+      if (command.autocomplete) {
+        await command.autocomplete(interaction);
+      }
+      return;
     }
-    try {
-        // Executa o comando
-        await command.execute(interaction);
-    } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: 'Ocorreu um erro ao executar este comando! Tente novamente mais tarde.', ephemeral: true });
+
+    // Trata slash command normal
+    if (interaction.isChatInputCommand()) {
+      await command.execute(interaction);
     }
+  } catch (error) {
+    console.error(error);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'Erro inesperado.', ephemeral: true });
+    } else {
+      await interaction.reply({ content: 'Erro inesperado.', ephemeral: true });
+    }
+  }
 });
 
 
