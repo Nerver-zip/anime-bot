@@ -5,7 +5,6 @@ dotenv.config();
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const express = require('express');
 const deployCommands = require('./deployCommands.js');
 
 const token = process.env.DISCORD_TOKEN;
@@ -63,7 +62,6 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-
 // --- Função Principal de Inicialização ---
 const start = async () => {
     try {
@@ -74,19 +72,6 @@ const start = async () => {
         await deployCommands();
         // 3. Faz o login do bot no Discord
         client.login(token);
-
-        // 4. Inicia o servidor web simples para o Health Check do Cloud Run
-        const app = express();
-        const port = process.env.PORT || 8080;
-
-        app.get('/', (_, res) => {
-            res.status(200).send({ status: 'ok', message: `Bot ${client.user.tag} está online.` });
-        });
-
-        app.listen(port, () => {
-            console.log(`✅ Servidor web para health check rodando na porta ${port}`);
-        });
-
     } catch (error) {
         console.error('❌ Falha ao iniciar o bot:', error);
     }
