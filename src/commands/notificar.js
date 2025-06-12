@@ -1,17 +1,15 @@
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionResponseFlags } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-// Módulos Utilitários
-const searchJikanAnime = require('../utils/searchAnime.js');         // Busca por NOME na Jikan (para autocomplete)
-const fetchJikanDetailsById = require('../utils/fetchAnimeInfo.js');   // Busca por ID na Jikan (para detalhes)
-const getCurrentEpisodeCount = require('../utils/getCurrentEpisodeCount.js'); // Busca contagem de episódios na Jikan
+const searchJikanAnime = require('../utils/searchAnime.js');        
+const fetchJikanDetailsById = require('../utils/fetchAnimeInfo.js'); 
+const getCurrentEpisodeCount = require('../utils/getCurrentEpisodeCount.js');
 
-// Modelo do Banco de Dados
 const Anime = require('../models/Anime.js');
 
 module.exports = {
 	data: new SlashCommandBuilder()
-		.setName('favoritar')
-		.setDescription('Busca um anime e o adiciona à sua lista de favoritos.')
+		.setName('notificar')
+		.setDescription('Receba notificação na sua DM quando um episódio novo lançar.')
 		.addStringOption(option =>
 			option.setName('anime')
 				.setDescription('O nome do anime a ser pesquisado.')
@@ -45,10 +43,8 @@ module.exports = {
 		const userId = interaction.user.id;
 
 		try {
-			// Inicia a interação de forma efêmera
-			await interaction.deferReply({ flags: InteractionResponseFlags.Ephemeral });
+			await interaction.deferReply({ ephemeral: true });
 
-			// Etapa 1: Buscar dados das APIs
 			const jikanDetailsResponse = await fetchJikanDetailsById(animeId);
 
 			if (!jikanDetailsResponse || !jikanDetailsResponse.data) {
@@ -72,7 +68,6 @@ module.exports = {
 				}
 			}
 
-			// Etapa 2: Montar a resposta
 			const embed = new EmbedBuilder()
 				.setColor(0x5865F2)
 				.setTitle(title)
@@ -86,51 +81,64 @@ module.exports = {
 				)
 				.setFooter({ text: `ID do Anime: ${animeId} | Fonte: Jikan API` });
 			
-			const favoriteButton = new ButtonBuilder()
-				.setCustomId(`favorite_btn_${animeId}`)
-				.setLabel('Favoritar')
+			const adicionar = new ButtonBuilder()
+				.setCustomId(`adicionar_btn_${animeId}`)
+				.setLabel('Adicionar')
 				.setStyle(ButtonStyle.Success)
-				.setEmoji('⭐');
+				.setEmoji('✅');
 				
-			const row = new ActionRowBuilder().addComponents(favoriteButton);
+			const row = new ActionRowBuilder().addComponents(adicionar);
 
 			const response = await interaction.editReply({ 
 				embeds: [embed],
 				components: [row] 
 			});
 
-			// Etapa 3: Esperar interação com o botão
 			const collectorFilter = i => i.user.id === userId;
 			
 			try {
 				const confirmation = await response.awaitMessageComponent({ filter: collectorFilter, time: 60_000 });
 				
-				const query = { titulo: title };
+				const query = { mal_id: animeId };
 				const animeDoc = await Anime.findOne(query);
 
-				if (animeDoc && animeDoc.favoritado_por.includes(userId)) {
+				if (animeDoc && animeDoc.notificar.includes(userId)) {
 					await confirmation.update({ 
-						content: `Você já tinha "${title}" na sua lista de favoritos!`, 
+						content: `Você já tinha "${title}" na sua lista!`, 
 						embeds: [embed],
 						components: [] 
 					});
-				} else {
+				}
+				else if(!animeDoc){
+        			await Anime.create({
+						mal_id: animeId,
+        			    titulo: title,
+						imageUrl: imageUrl,
+        			    ultimo_episodio: episodesToSave,
+        			    notificar: [userId]
+        			});
+					await confirmation.update({ 
+						content: `"${title}" foi adicionado aos seus favoritos.`, 
+						embeds: [embed],
+						components: []
+					});
+				}
+				else //não atualiza num de eps aqui para evitar race condition
+				{
 					await Anime.updateOne(
 						query,
 						{ 
-							$addToSet: { favoritado_por: userId },
-							$set: { ultimo_episodio: episodesToSave } 
-						},
-						{ upsert: true }
+							$addToSet: { notificar: userId },
+							$addToSet: { imageUrl: imageUrl },
+						}
 					);
 					await confirmation.update({ 
-						content: `Pronto! "${title}" foi adicionado aos seus favoritos.`, 
+						content: `"${title}" foi adicionado a sua lista para notificações.`, 
 						embeds: [embed],
 						components: []
 					});
 				}
 			} catch (e) {
-				// Timeout do botão, apenas removemos os componentes
 				await interaction.editReply({ embeds: [embed], components: [] });
 			}
 		} catch (error) {
@@ -139,12 +147,12 @@ module.exports = {
 			if (interaction.deferred || interaction.replied) {
 				await interaction.followUp({ 
 					content: 'Ocorreu um erro inesperado ao processar sua solicitação.',
-					flags: InteractionResponseFlags.Ephemeral 
+					ephemeral: true 
 				});
 			} else {
 				await interaction.reply({ 
 					content: 'Ocorreu um erro inesperado ao processar sua solicitação.',
-					flags: InteractionResponseFlags.Ephemeral 
+					ephemeral: true 
 				});
 			}
 		}

@@ -29,4 +29,4 @@ async function deployCommands(){
     }
 };
 
-module.exports = deployCommands;
+deployCommands();

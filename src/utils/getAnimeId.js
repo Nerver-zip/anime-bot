@@ -52,7 +52,6 @@ async function getAnimeId(animeName) {
 // --- BLOCO DE TESTE ---
 if (require.main === module) {
     (async () => {
-        // Altere o nome aqui para testar diferentes animes
         const animeNameToTest = 'To Be Hero X'; 
         
         console.log("--- INICIANDO TESTE INDIVIDUAL ---");

@@ -28,7 +28,7 @@ async function fetchAnimeInfo(malId) {
         throw error;
     }
 }
-//Testing module
+//Modulo de teste
 if (require.main === module) {
     (async () => {
         const anime = await fetchAnimeInfo("53447");

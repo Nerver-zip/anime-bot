@@ -12,7 +12,7 @@ async function searchAnime(query) {
     if (!response.ok) throw new Error('Falha na busca da Jikan API');
     return await response.json();
 }
-//Testing module
+//Modulo de teste
 if (require.main === module) {
     (async () => {
         const anime = await searchAnime("Frieren");
