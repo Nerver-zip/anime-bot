@@ -20,16 +20,16 @@ for (const file of commandFiles) {
     const command = require(filePath);
     if ('data' in command && 'execute' in command) {
         client.commands.set(command.data.name, command);
-        console.log(`[INFO] O comando ${command.data.name} foi carregado com sucesso.`);
+        console.log(`[INFO] The command ${command.data.name} was loaded successfully.`);
     } else {
-        console.log(`[AVISO] O comando em ${filePath} está faltando a propriedade "data" ou "execute".`);
+        console.log(`[WARNING] The command in ${filePath} is missing the "data" or "execute" property.`);
     }
 }
 
 // --- Evento de Bot Pronto ---
 client.once(Events.ClientReady, readyClient => {
-	console.log(`✅ O bot está online como ${readyClient.user.tag}`);
-  console.log('[CRON JOB] Bot online. Rodando verificação de episódios.');
+	console.log(`✅ The bot is online as ${readyClient.user.tag}`);
+  console.log('[CRON JOB] Bot is online. Verifying episodes.');
     checkNewEpisodes(readyClient);
     // Configura para rodar busca de novos eps a cada 30 minutos a partir de agora.
     setInterval(() => checkNewEpisodes(readyClient), 1800000); 
@@ -57,9 +57,9 @@ client.on('interactionCreate', async interaction => {
   } catch (error) {
     console.error(error);
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp({ content: 'Erro inesperado.', ephemeral: true });
+      await interaction.followUp({ content: 'Unexpected error.', ephemeral: true });
     } else {
-      await interaction.reply({ content: 'Erro inesperado.', ephemeral: true });
+      await interaction.reply({ content: 'Unexpected error.', ephemeral: true });
     }
   }
 });
@@ -67,10 +67,10 @@ client.on('interactionCreate', async interaction => {
 const start = async () => {
     try {
         await connectToDB(process.env.MONGO_URI);
-        console.log('✅ Conectado ao MongoDB com sucesso!');
+        console.log('✅ Successfully connected to MongoDB!');
         client.login(token);
     } catch (error) {
-        console.error('❌ Falha ao iniciar o bot:', error);
+        console.error('❌ Could not start bot:', error);
     }
 };
 

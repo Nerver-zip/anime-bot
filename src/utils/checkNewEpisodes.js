@@ -8,12 +8,12 @@ const { EmbedBuilder } = require('discord.js');
  * @param {import('discord.js').Client} client O cliente do Discord para poder enviar DMs.
  */
 async function checkNewEpisodes(client) {
-    console.log(`[CRON JOB] ${new Date().toLocaleString('pt-BR')}: Iniciando verificação de novos episódios...`);
+    console.log(`[CRON JOB] ${new Date().toLocaleString('pt-BR')}: Starting new episode check...`);
     
-    // 1. Busca todos os animes que foram favoritados no banco
+    // 1. Busca todos os animes que foram adicionados no banco
     const animesInDB = await Anime.find({});
     if (!animesInDB.length) {
-        console.log('[CRON JOB] Nenhum anime no banco de dados para verificar.');
+        console.log('[CRON JOB] No anime found in database to check.');
         return;
     }
 
@@ -24,16 +24,16 @@ async function checkNewEpisodes(client) {
             const currentApiEpisodes = await getCurrentEpisodeCount(anime.mal_id);
 
             // 3. Compara os episódios da API com os que temos registrados.
-            if (currentApiEpisodes !== null && currentApiEpisodes > anime.ultimo_episodio) {
-                console.log(`[NOTIFICAÇÃO] Novo(s) episódio(s) de "${anime.titulo}"! Lançado(s): ${currentApiEpisodes}, Registrado no DB: ${anime.ultimo_episodio}`);
+            if (currentApiEpisodes !== null && currentApiEpisodes > anime.last_episode) {
+                console.log(`[NOTIFICATION] New episode(s) of "${anime.title}"! Released: ${currentApiEpisodes}, Recorded in DB: ${anime.last_episode}`);
 
-                const newEpisodeCount = currentApiEpisodes - anime.ultimo_episodio;
+                const newEpisodeCount = currentApiEpisodes - anime.last_episode;
                 const plural = newEpisodeCount > 1 ? 's' : '';
-                const plural2 = newEpisodeCount > 1 ? 'ão' : 'á';
-                const plural3 = newEpisodeCount > 1 ? 'is' : 'l';
-                const episodeTextField = newEpisodeCount > 1 ? `Episódios ${anime.ultimo_episodio + 1} a ${currentApiEpisodes}` : `Episódio ${currentApiEpisodes}`;
+                const episodeTextField = newEpisodeCount > 1 
+                    ? `Episodes ${anime.last_episode + 1} to ${currentApiEpisodes}` 
+                    : `Episode ${currentApiEpisodes}`;
 
-                // 4. Se houver diferença, notifica todos os usuários que favoritaram este anime.
+                // 4. Se houver diferença, notifica todos os usuários que adicionaram este anime.
                 for (const userId of anime.notificar) {
                     try {
                         // Busca o objeto do usuário para poder enviar a DM
@@ -41,35 +41,35 @@ async function checkNewEpisodes(client) {
                         
                         // Cria uma mensagem bonita (Embed) para a notificação
                         const notificationEmbed = new EmbedBuilder()
-                            .setColor(0x3BA55D) // Verde
-                            .setTitle(`📢 Novo episódio de ${anime.titulo}!`)
+                            .setColor(0x3BA55D) // Green
+                            .setTitle(`📢 New episode${plural} of ${anime.title}!`)
                             .setThumbnail(anime.imageUrl)
                             .setURL(`https://myanimelist.net/anime/${anime.mal_id}`)
-                            .setDescription(`Opa! **${newEpisodeCount}** novo${plural} episódio${plural} de **${anime.titulo}** já est${plural2} disponíve${plural3} para você assistir.`)
-                            .addFields({ name: 'Lançamento', value: episodeTextField })
-                            .setFooter({ text: 'Anime-Bot Notificações' })
+                            .setDescription(`Hey! **${newEpisodeCount}** new episode${plural} of **${anime.title}** ${newEpisodeCount > 1 ? 'are' : 'is'} now available for you to watch.`)
+                            .addFields({ name: 'Release', value: episodeTextField })
+                            .setFooter({ text: 'Anime-Bot Notifications' })
                             .setTimestamp();
                         
                         // Envia a DM para o usuário
                         await user.send({ embeds: [notificationEmbed] });
 
                     } catch (dmError) {
-                        console.log(`[NOTIFICAÇÃO] Falha ao notificar usuário ${userId} para o anime "${anime.titulo}". O usuário pode ter DMs bloqueadas ou não compartilha mais servidores.`);
+                        console.log(`[NOTIFICATION] Failed to notify user ${userId} for anime "${anime.title}". The user may have DMs disabled or no longer shares servers.`);
                     }
                 }
 
                 // 5. Após notificar todo mundo, atualiza nosso banco de dados com a nova contagem.
                 await Anime.updateOne(
                     { mal_id: anime.mal_id },
-                    { $set: { ultimo_episodio: currentApiEpisodes } }
+                    { $set: { last_episode: currentApiEpisodes } }
                 );
-                console.log(`[NOTIFICAÇÃO] Banco de dados atualizado para "${anime.titulo}". Novo contador: ${currentApiEpisodes}.`);
+                console.log(`[NOTIFICATION] Database updated for "${anime.title}". New count: ${currentApiEpisodes}.`);
             }
         } catch (error) {
-            console.error(`[CRON JOB] Erro ao verificar o anime "${anime.titulo}" (ID: ${anime.mal_id}):`, error);
+            console.error(`[CRON JOB] Error checking anime "${anime.title}" (ID: ${anime.mal_id}):`, error);
         }
     }
-    console.log(`[CRON JOB] Verificação de novos episódios finalizada.`);
+    console.log(`[CRON JOB] New episode check completed.`);
 }
 
 module.exports = checkNewEpisodes;

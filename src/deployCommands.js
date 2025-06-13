@@ -14,16 +14,16 @@ for (const file of commandFiles) {
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-async function deployCommands(){
+async function deployCommands() {
     try {
-        console.log(`Iniciando o registro de ${commands.length} comandos (/) de aplicação.`);
+        console.log(`Starting registration of ${commands.length} application (/) commands.`);
 
         const data = await rest.put(
             Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
             { body: commands },
         );
 
-        console.log(`Foram registrados ${data.length} comandos (/) com sucesso.`);
+        console.log(`Successfully registered ${data.length} application (/) commands.`);
     } catch (error) {
         console.error(error);
     }

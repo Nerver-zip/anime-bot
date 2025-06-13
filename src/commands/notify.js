@@ -8,11 +8,11 @@ const Anime = require('../models/Anime.js');
 
 module.exports = {
 	data: new SlashCommandBuilder()
-		.setName('notificar')
-		.setDescription('Receba notificação na sua DM quando um episódio novo lançar.')
+		.setName('notify')
+		.setDescription('Get a DM notification when a new episode is released')
 		.addStringOption(option =>
 			option.setName('anime')
-				.setDescription('O nome do anime a ser pesquisado.')
+				.setDescription('An anime name to search')
 				.setRequired(true)
 				.setAutocomplete(true)
 		),
@@ -33,7 +33,7 @@ module.exports = {
 
 			await interaction.respond(choices);
 		} catch (error) {
-			console.error('Erro no autocomplete (Jikan):', error);
+			console.error('Autocomplete error (Jikan):', error);
 			await interaction.respond([]);
 		}
 	},
@@ -49,14 +49,15 @@ module.exports = {
 
 			if (!jikanDetailsResponse || !jikanDetailsResponse.data) {
 				return await interaction.editReply({ 
-                    content: 'Não foi possível encontrar detalhes para este anime na Jikan API.'
+                    content: 'Anime could not be found on Jikan API.'
                 });
 			}
 			
 			const animeData = jikanDetailsResponse.data;
-			const { title, episodes: totalEpisodes, status, score, images, synopsis, url } = animeData;
+			const { title, episodes: totalEpisodes, status, score, images, synopsis, url, genres = [], themes = [], explicit_genres = []} = animeData;
 			const imageUrl = images?.jpg?.large_image_url || images?.jpg?.image_url;
-
+			const allGenresAndThemes = [...genres, ...explicit_genres, ...themes].map(item => item.name).join(', ');
+			
 			let episodesToSave = totalEpisodes || 0;
 			let episodeCountText = String(totalEpisodes || '??');
 
@@ -72,18 +73,19 @@ module.exports = {
 				.setColor(0x5865F2)
 				.setTitle(title)
 				.setURL(url || `https://myanimelist.net/anime/${animeId}`)
-				.setDescription(synopsis ? synopsis.substring(0, 250) + '...' : 'Sem sinopse disponível.')
+				.setDescription(synopsis ? synopsis.substring(0, 250) + '...' : 'Synopsis not available.')
 				.setThumbnail(imageUrl)
 				.addFields(
-					{ name: 'Episódios', value: episodeCountText, inline: true },
+					{ name: 'Genres and themes', value: allGenresAndThemes, inline: true },
+					{ name: 'Episodes', value: episodeCountText, inline: true },
 					{ name: 'Status', value: status, inline: true },
-					{ name: 'Nota Média', value: String(score || 'N/A'), inline: true }
+					{ name: 'Average Score', value: String(score || 'N/A'), inline: true }
 				)
-				.setFooter({ text: `ID do Anime: ${animeId} | Fonte: Jikan API` });
+				.setFooter({ text: `Anime ID: ${animeId} | Source: Jikan API` });
 			
 			const adicionar = new ButtonBuilder()
-				.setCustomId(`adicionar_btn_${animeId}`)
-				.setLabel('Adicionar')
+				.setCustomId(`add_btn_${animeId}`)
+				.setLabel('Add')
 				.setStyle(ButtonStyle.Success)
 				.setEmoji('✅');
 				
@@ -102,9 +104,9 @@ module.exports = {
 				const query = { mal_id: animeId };
 				const animeDoc = await Anime.findOne(query);
 
-				if (animeDoc && animeDoc.notificar.includes(userId)) {
+				if (animeDoc && animeDoc.notify.includes(userId)) {
 					await confirmation.update({ 
-						content: `Você já tinha "${title}" na sua lista!`, 
+						content: `You already had "${title}" on your list!`, 
 						embeds: [embed],
 						components: [] 
 					});
@@ -112,13 +114,13 @@ module.exports = {
 				else if(!animeDoc){
         			await Anime.create({
 						mal_id: animeId,
-        			    titulo: title,
+        			    title: title,
 						imageUrl: imageUrl,
-        			    ultimo_episodio: episodesToSave,
-        			    notificar: [userId]
+        			    last_episode: episodesToSave,
+        			    notify: [userId]
         			});
 					await confirmation.update({ 
-						content: `"${title}" foi adicionado aos seus favoritos.`, 
+						content: `"${title}" was added to your list ✅`, 
 						embeds: [embed],
 						components: []
 					});
@@ -127,31 +129,36 @@ module.exports = {
 				{
 					await Anime.updateOne(
 						query,
-						{ 
-							$addToSet: { notificar: userId },
-							$addToSet: { imageUrl: imageUrl },
+						{
+							$addToSet: { notify: userId },
+							$set: { imageUrl: imageUrl }
 						}
 					);
 					await confirmation.update({ 
-						content: `"${title}" foi adicionado a sua lista para notificações.`, 
+						content: `"${title}" was added to your list for notifications.`, 
 						embeds: [embed],
 						components: []
 					});
 				}
 			} catch (e) {
-				await interaction.editReply({ embeds: [embed], components: [] });
+    				console.error("Error on 'add' button: ", e);
+    				await interaction.editReply({ 
+    				    content: `Error. Try again later`,
+    				    embeds: [embed],
+    				    components: [] 
+    				});
 			}
 		} catch (error) {
-			console.error('Erro fatal na execução de /favoritar:', error);
+			console.error('Fatal error on /notify execution:', error);
 		
 			if (interaction.deferred || interaction.replied) {
 				await interaction.followUp({ 
-					content: 'Ocorreu um erro inesperado ao processar sua solicitação.',
+					content: 'Unexpected error on processing your request.',
 					ephemeral: true 
 				});
 			} else {
 				await interaction.reply({ 
-					content: 'Ocorreu um erro inesperado ao processar sua solicitação.',
+					content: 'Unexpected error on processing your request.',
 					ephemeral: true 
 				});
 			}

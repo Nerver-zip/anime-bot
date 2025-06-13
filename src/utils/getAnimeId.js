@@ -8,11 +8,11 @@ dotenv.config();
  */
 async function getAnimeId(animeName) {
     if (!animeName || typeof animeName !== 'string') {
-        console.error("Nome do anime inválido.");
+        console.error("Invalid anime name.");
         return null;
     }
 
-    console.log(`[API] Buscando por "${animeName}"...`);
+    console.log(`[API] Searching for "${animeName}"...`);
 
     const url = `https://api.myanimelist.net/v2/anime?q=${encodeURIComponent(animeName)}&limit=1`;
 
@@ -23,7 +23,7 @@ async function getAnimeId(animeName) {
         });
 
         if (!response.ok) {
-            console.error(`[API] Erro de resposta: ${response.status} ${response.statusText}`);
+            console.error(`[API] Response error: ${response.status} ${response.statusText}`);
             return null;
         }
 
@@ -38,12 +38,12 @@ async function getAnimeId(animeName) {
             return animeId;
         } else {
             // Se a lista 'data' for vazia, o anime não foi encontrado.
-            console.log(`[API] Nenhum resultado encontrado para "${animeName}".`);
+            console.log(`[API] No results found for "${animeName}".`);
             return null;
         }
 
     } catch (error) {
-        console.error('[API] Falha crítica na requisição:', error);
+        console.error('[API] Critical request failure:', error);
         return null;
     }
 }
@@ -54,18 +54,18 @@ if (require.main === module) {
     (async () => {
         const animeNameToTest = 'To Be Hero X'; 
         
-        console.log("--- INICIANDO TESTE INDIVIDUAL ---");
+        console.log("--- STARTING INDIVIDUAL TEST ---");
         const id = await getAnimeId(animeNameToTest);
 
         if (id) {
-            console.log(`\n✅ SUCESSO!`);
-            console.log(`O ID do anime "${animeNameToTest}" é: ${id}`);
+            console.log(`\n✅ SUCCESS!`);
+            console.log(`The ID for the anime "${animeNameToTest}" is: ${id}`);
         } else {
-            console.log(`\n❌ FALHA.`);
-            console.log(`Não foi possível obter o ID para "${animeNameToTest}".`);
+            console.log(`\n❌ FAILURE.`);
+            console.log(`Could not retrieve the ID for "${animeNameToTest}".`);
         }
-        console.log("--- TESTE FINALIZADO ---");
+        console.log("--- TEST COMPLETED ---");
     })();
 }
 
-module.exports = {getAnimeId};
+module.exports = { getAnimeId };
