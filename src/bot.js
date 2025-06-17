@@ -5,11 +5,13 @@ dotenv.config();
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits } = require('discord.js');
-const checkNewEpisodes = require('./utils/checkNewEpisodes.js');
+
+const { setupTimersForAnimes } = require('./scheduler.js'); // Importa o scheduler
 
 const token = process.env.DISCORD_TOKEN;
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages], partials: ['CHANNEL'] }); 
+// Adicionei DirectMessages e partials para garantir que o bot consiga mandar DMs
 
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
@@ -27,14 +29,16 @@ for (const file of commandFiles) {
 }
 
 // --- Evento de Bot Pronto ---
-client.once(Events.ClientReady, readyClient => {
-	console.log(`✅ The bot is online as ${readyClient.user.tag}`);
-  console.log('[CRON JOB] Bot is online. Verifying episodes.');
-    checkNewEpisodes(readyClient);
-    // Configura para rodar busca de novos eps a cada 30 minutos a partir de agora.
-    setInterval(() => checkNewEpisodes(readyClient), 1800000); 
+client.once(Events.ClientReady, async readyClient => {
+    console.log(`✅ The bot is online as ${readyClient.user.tag}`);
+    console.log('[SCHEDULER] Starting anime episode check timers...');
+    try {
+      await setupTimersForAnimes(readyClient);
+      console.log('[SCHEDULER] Timers configured successfully.');
+    } catch (error) {
+      console.error('[SCHEDULER] Error setting up timers:', error);
+    }
 });
-
 
 // --- Listener de Interação ---
 client.on('interactionCreate', async interaction => {
@@ -68,7 +72,7 @@ const start = async () => {
     try {
         await connectToDB(process.env.MONGO_URI);
         console.log('✅ Successfully connected to MongoDB!');
-        client.login(token);
+        await client.login(token);
     } catch (error) {
         console.error('❌ Could not start bot:', error);
     }

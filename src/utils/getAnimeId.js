@@ -52,7 +52,7 @@ async function getAnimeId(animeName) {
 // --- BLOCO DE TESTE ---
 if (require.main === module) {
     (async () => {
-        const animeNameToTest = 'To Be Hero X'; 
+        const animeNameToTest = 'A Rank Party'; 
         
         console.log("--- STARTING INDIVIDUAL TEST ---");
         const id = await getAnimeId(animeNameToTest);
