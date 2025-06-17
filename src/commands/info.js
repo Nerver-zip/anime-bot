@@ -2,7 +2,6 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 
 const searchJikanAnime = require('../utils/searchAnime.js');        
 const fetchJikanDetailsById = require('../utils/fetchAnimeInfo.js'); 
-const getCurrentEpisodeCount = require('../utils/getCurrentEpisodeCount.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
