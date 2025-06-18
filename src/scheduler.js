@@ -3,8 +3,8 @@ const { DateTime } = require('luxon');
 const checkAnimeEpisode = require('./utils/checkAnimeEpisode.js');
 
 /**
- * Sets up all anime schedules on startup.
- * @param {Discord.Client} client - Discord client instance for sending messages.
+ * Inicializa o agendamento para todos os animes no DB ao iniciar o bot.
+ * @param {Discord.Client} client
  */
 async function setupTimersForAnimes(client) {
   console.log(`[Scheduler] ${DateTime.now().toISO()} - Initializing anime schedules...`);
@@ -21,7 +21,9 @@ async function setupTimersForAnimes(client) {
 }
 
 /**
- * Schedule an individual anime.
+ * Agenda o próximo check de um anime individual.
+ * @param {Object} animeDoc - Documento mongoose do anime
+ * @param {Discord.Client} client
  */
 function scheduleAnime(animeDoc, client) {
   const { title, schedule, lastNotified } = animeDoc;
@@ -31,14 +33,21 @@ function scheduleAnime(animeDoc, client) {
     return;
   }
 
-  // Base timestamp: se lastNotified é nulo, calcula próximo horário a partir de agora
-  const baseTimestamp = lastNotified ? DateTime.fromISO(lastNotified).toMillis() : Date.now();
+  const baseDate = lastNotified instanceof Date
+    ? DateTime.fromJSDate(lastNotified)
+    : DateTime.now();
 
-  const nextRunTime = getNextScheduleTime(schedule, baseTimestamp + 1);
+  const nextRunTime = getNextScheduleTime(schedule, baseDate.plus({ milliseconds: 1 }).toMillis());
+
+  if (!nextRunTime) {
+    console.warn(`[Scheduler] ${DateTime.now().toISO()} - "${title}" has invalid schedule, skipping.`);
+    return;
+  }
+
   const delayMs = nextRunTime - Date.now();
-
   const dtNext = DateTime.fromMillis(nextRunTime).toISO();
-  console.log(`[Scheduler] ${DateTime.now().toISO()} - "${title}" will be checked at ${dtNext} (delay: ${(delayMs / 1000 / 60).toFixed(2)} min)`);
+
+  console.log(`[Scheduler] ${DateTime.now().toISO()} - "${title}" will be checked at ${dtNext} (delay: ${(delayMs / 60000).toFixed(2)} min)`);
 
   if (delayMs <= 0) {
     console.warn(`[Scheduler] ${DateTime.now().toISO()} - "${title}" time has passed. Checking immediately.`);
@@ -49,7 +58,9 @@ function scheduleAnime(animeDoc, client) {
 }
 
 /**
- * Runs the check and schedules the next one.
+ * Executa a verificação e agenda o próximo check.
+ * @param {Object} animeDoc
+ * @param {Discord.Client} client
  */
 async function runAndReschedule(animeDoc, client) {
   const title = animeDoc.title;
@@ -57,68 +68,79 @@ async function runAndReschedule(animeDoc, client) {
 
   try {
     await checkAnimeEpisode(animeDoc, client);
-
-    // Update lastNotified assuming notification/check happened now
-    animeDoc.lastNotified = DateTime.now().toISO();
+    animeDoc.lastNotified = new Date(); // garante Date, não ISO string
     await animeDoc.save();
-
     console.log(`[Scheduler] ${DateTime.now().toISO()} - Check completed for "${title}".`);
   } catch (err) {
     console.error(`[Scheduler] ${DateTime.now().toISO()} - Error checking episode for "${title}":`, err);
   }
 
-  // If lastNotified is null, schedule next from now; else from lastNotified + 1 ms
-  const baseTimestamp = animeDoc.lastNotified
-    ? DateTime.fromISO(animeDoc.lastNotified).toMillis() + 1
-    : Date.now();
-
+  const baseTimestamp = DateTime.now().toMillis() + 1;
   const nextRunTime = getNextScheduleTime(animeDoc.schedule, baseTimestamp);
-  const delayMs = nextRunTime - Date.now();
 
-  const safeDelayMs = delayMs > 1000 ? delayMs : 1000 * 60; // At least 1 minute
+  if (!nextRunTime) {
+    console.warn(`[Scheduler] Invalid nextRunTime for "${animeDoc.title}", scheduling retry in 1 hour.`);
+    setTimeout(() => runAndReschedule(animeDoc, client), 1000 * 60 * 60);
+    return;
+  }
+
+  let delayMs = nextRunTime - Date.now();
+
+  if (delayMs < 0) {
+    console.warn(`[Scheduler] NextRunTime is in the past for "${animeDoc.title}", scheduling retry in 1 minute.`);
+    delayMs = 1000 * 60;
+  }
 
   const dtNext = DateTime.fromMillis(nextRunTime).toISO();
-  console.log(`[Scheduler] ${DateTime.now().toISO()} - Next check for "${title}" scheduled at ${dtNext} (in ${(safeDelayMs / 1000 / 60 / 60).toFixed(2)} hours).`);
+  console.log(`[Scheduler] ${DateTime.now().toISO()} - Next check for "${animeDoc.title}" scheduled at ${dtNext} (in ${(delayMs / 60000).toFixed(2)} min).`);
 
-  setTimeout(() => runAndReschedule(animeDoc, client), safeDelayMs);
+  setTimeout(() => runAndReschedule(animeDoc, client), delayMs);
 }
 
 /**
- * Calculates the timestamp of the next scheduled episode.
- * 
- * @param {object} schedule - Schedule object with .day (weekday string), .time (HH:mm), and optional .timezone
- * @param {number} fromTimestamp - Milliseconds timestamp to calculate next schedule from
- * @returns {number} Milliseconds timestamp for next scheduled date/time
+ * Calcula timestamp do próximo horário programado baseado no dia e hora.
+ * @param {Object} schedule { day: string, time: string, timezone?: string }
+ * @param {number} fromTimestamp - timestamp em ms para calcular a partir dele
+ * @returns {number|null} timestamp em ms ou null se erro
  */
 function getNextScheduleTime(schedule, fromTimestamp = Date.now()) {
-  const daysOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  // Normaliza o dia: tira o 's' final se tiver, e coloca com a primeira letra maiúscula
-  let day = schedule.day.trim();
-  if (day.toLowerCase().endsWith('s')) {
-    day = day.slice(0, -1);
-  }
-  day = day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+  let day = schedule.day.trim().toLowerCase();
+  if (day.endsWith('s')) day = day.slice(0, -1);
+  day = day.charAt(0).toUpperCase() + day.slice(1);
 
   const dayIndex = daysOfWeek.indexOf(day);
-  if (dayIndex === -1) return fromTimestamp;
+  if (dayIndex === -1) {
+    console.warn(`[Scheduler] getNextScheduleTime - Invalid weekday "${schedule.day}" normalized to "${day}"`);
+    return null;
+  }
 
   const [hourStr, minStr] = schedule.time.split(':');
   const hour = parseInt(hourStr, 10);
   const minute = parseInt(minStr, 10);
 
-  let dt = DateTime.fromMillis(fromTimestamp).setZone(schedule.timezone || 'Asia/Tokyo');
-  dt = dt.set({ hour, minute, second: 0, millisecond: 0 });
-
-  const currentWeekday = dt.weekday % 7;
-  let daysToAdd = (dayIndex - currentWeekday + 7) % 7;
-
-  if (daysToAdd === 0 && dt.toMillis() <= fromTimestamp) {
-    daysToAdd = 7;
+  if (isNaN(hour) || isNaN(minute)) {
+    console.warn(`[Scheduler] getNextScheduleTime - Invalid time format: "${schedule.time}"`);
+    return null;
   }
 
-  dt = dt.plus({ days: daysToAdd });
-  return dt.toMillis();
+  const zone = schedule.timezone || 'Asia/Tokyo';
+  const from = DateTime.fromMillis(fromTimestamp).setZone(zone);
+  const targetTimeToday = from.set({ hour, minute, second: 0, millisecond: 0 });
+
+  const currentWeekday = from.weekday % 7; // 0 (Sunday) a 6 (Saturday)
+  let daysToAdd = (dayIndex - currentWeekday + 7) % 7;
+
+  // Se for hoje e o horário ainda não passou, mantém hoje
+  if (daysToAdd === 0 && targetTimeToday > from) {
+    return targetTimeToday.toMillis();
+  }
+
+  const nextTime = targetTimeToday.plus({ days: daysToAdd || 7 }); // se daysToAdd = 0 e hora já passou, joga pra próxima semana
+  console.log(`[Scheduler] getNextScheduleTime - next scheduled time: ${nextTime.toISO()}`);
+
+  return nextTime.toMillis();
 }
 
 module.exports = {

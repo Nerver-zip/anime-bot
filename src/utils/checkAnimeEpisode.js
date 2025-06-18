@@ -1,13 +1,8 @@
 const { EmbedBuilder } = require('discord.js');
 const { DateTime } = require('luxon');
 
-const MAX_DELAY_DAYS = 3;
+const MAX_DELAY_MINUTES = 60 * 24 * 3; // 3 dias
 
-/**
- * Checks if a new episode of an anime is about to air and sends notifications.
- * @param {object} animeDoc - The anime document from the database.
- * @param {Discord.Client} client - The Discord client.
- */
 async function checkAnimeEpisode(animeDoc, client) {
   const { schedule, notify, title, lastNotified, imageUrl } = animeDoc;
 
@@ -21,39 +16,42 @@ async function checkAnimeEpisode(animeDoc, client) {
   const timezone = DateTime.local().setZone(schedule.timezone).isValid
     ? schedule.timezone
     : 'Asia/Tokyo';
-
   const now = DateTime.now().setZone(timezone);
-  const todayWeekday = now.toFormat('cccc');
 
-  const scheduled = DateTime.fromFormat(schedule.time, 'HH:mm', { zone: timezone })
-    .set({ weekday: 1 }) // Start at Monday
-    .plus({ days: getWeekdayOffset(schedule.day) }) // Move to target weekday
-    .set({ weekYear: now.weekYear, weekNumber: now.weekNumber }); // Set to current week
+  const [hourStr, minStr] = schedule.time.split(':');
+  const hour = parseInt(hourStr, 10);
+  const minute = parseInt(minStr, 10);
 
-  let latestScheduledTime = scheduled;
-  if (scheduled > now) {
-    latestScheduledTime = scheduled.minus({ weeks: 1 });
-  }
-
-  const diffMinutes = now.diff(latestScheduledTime, 'minutes').minutes;
-  const diffDays = now.diff(latestScheduledTime, 'days').days;
-
-  console.log(`[Checker] "${title}" was last scheduled on: ${latestScheduledTime.toISO()}`);
-  console.log(`[Checker] Now: ${now.toISO()} | Difference: ${diffMinutes.toFixed(1)} min (${diffDays.toFixed(1)} days)`);
-
-  if (!lastNotified && diffDays > 0) {
-    console.log(`[Checker] Skipping: missed the first scheduled check, will catch next.`);
+  if (isNaN(hour) || isNaN(minute)) {
+    console.warn(`[Checker] "${title}" skipped: invalid time format "${schedule.time}".`);
     return;
   }
 
-  if (diffDays > MAX_DELAY_DAYS) {
-    console.log(`[Checker] Skipped: exceeded max delay of ${MAX_DELAY_DAYS} days.`);
+  const targetWeekday = getWeekdayIndex(schedule.day);
+  let candidate = now.set({ hour, minute, second: 0, millisecond: 0 });
+
+  while (candidate.weekday !== targetWeekday) {
+    candidate = candidate.minus({ days: 1 });
+  }
+
+  const latestScheduledTime = candidate;
+  const diffMinutes = now.diff(latestScheduledTime, 'minutes').minutes;
+
+  console.log(`[Checker] "${title}" was last scheduled on: ${latestScheduledTime.toISO()}`);
+  console.log(`[Checker] Now: ${now.toISO()} | Difference: ${diffMinutes.toFixed(1)} min`);
+
+  if (diffMinutes > MAX_DELAY_MINUTES) {
+    console.log(`[Checker] Skipped: exceeded max delay of 3 days.`);
     return;
   }
 
   const lastNotifiedDate = lastNotified
     ? DateTime.fromJSDate(lastNotified).setZone(timezone)
     : null;
+
+  if (!lastNotifiedDate) {
+    console.log(`[Checker] First time checking or no lastNotified for "${title}".`);
+  }
 
   if (lastNotifiedDate && lastNotifiedDate.hasSame(latestScheduledTime, 'day')) {
     console.log(`[Checker] Already notified on the same day (${lastNotifiedDate.toISODate()}).`);
@@ -85,15 +83,11 @@ async function checkAnimeEpisode(animeDoc, client) {
   console.log(`[Checker] lastNotified updated for "${title}".`);
 }
 
-/**
- * Calculates how many days to add to reach the target weekday.
- * @param {string} targetDayName
- * @returns {number}
- */
-function getWeekdayOffset(targetDayName) {
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const index = days.indexOf(targetDayName);
-  return index !== -1 ? index : 0;
+function getWeekdayIndex(dayName) {
+  const normalized = dayName.trim().toLowerCase().replace(/s$/, '');
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const index = days.indexOf(normalized);
+  return index === -1 ? 1 : index + 1; // default to Monday (1)
 }
 
 module.exports = checkAnimeEpisode;

@@ -115,8 +115,9 @@ module.exports = {
         const query = { mal_id: animeId };
         const animeDoc = await Anime.findOne(query);
 
+        const normalizedDay = broadcast.day?.trim().replace(/s$/i, '');
         const scheduleObj = {
-          day: broadcast.day,
+          day: normalizedDay,
           time: broadcast.time,
           timezone: broadcast.timezone || 'Asia/Tokyo'
         };
