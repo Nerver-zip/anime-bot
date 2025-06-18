@@ -1,43 +1,67 @@
-const { DateTime } = require('luxon');
 const { EmbedBuilder } = require('discord.js');
+const { DateTime } = require('luxon');
 
-const TIME_TOLERANCE_MINUTES = 15;
+const MAX_DELAY_DAYS = 3;
 
 /**
- * Checa se o episódio novo de um anime está para sair e envia notificação
- * @param {Object} animeDoc - Documento mongoose do anime
- * @param {Discord.Client} client - Instância do client Discord para enviar mensagens
+ * Checks if a new episode of an anime is about to air and sends notifications.
+ * @param {object} animeDoc - The anime document from the database.
+ * @param {Discord.Client} client - The Discord client.
  */
 async function checkAnimeEpisode(animeDoc, client) {
-  const nowJST = DateTime.now().setZone('Asia/Tokyo');
   const { schedule, notify, title, lastNotified, imageUrl } = animeDoc;
 
-  if (!schedule || !schedule.time || !schedule.day) return;
+  console.log(`[Checker] Checking anime: "${title}"`);
 
-  // Verifica se o dia de hoje é o do schedule
-  const weekday = nowJST.toFormat('cccc');
-  if (weekday !== schedule.day) return;
+  if (!schedule || !schedule.time || !schedule.day) {
+    console.warn(`[Checker] "${title}" skipped: incomplete schedule.`);
+    return;
+  }
 
-  // Valida e define timezone
   const timezone = DateTime.local().setZone(schedule.timezone).isValid
     ? schedule.timezone
     : 'Asia/Tokyo';
 
-  // Horário agendado convertido para DateTime
-  const scheduledTime = DateTime.fromFormat(schedule.time, 'HH:mm', { zone: timezone })
-    .set({ year: nowJST.year, month: nowJST.month, day: nowJST.day });
+  const now = DateTime.now().setZone(timezone);
+  const todayWeekday = now.toFormat('cccc');
 
-  // Se diferença de horário for maior que tolerância, sai
-  const diff = Math.abs(nowJST.diff(scheduledTime, 'minutes').minutes);
-  if (diff > TIME_TOLERANCE_MINUTES) return;
+  const scheduled = DateTime.fromFormat(schedule.time, 'HH:mm', { zone: timezone })
+    .set({ weekday: 1 }) // Start at Monday
+    .plus({ days: getWeekdayOffset(schedule.day) }) // Move to target weekday
+    .set({ weekYear: now.weekYear, weekNumber: now.weekNumber }); // Set to current week
 
-  // Evita múltiplas notificações no mesmo dia
+  let latestScheduledTime = scheduled;
+  if (scheduled > now) {
+    latestScheduledTime = scheduled.minus({ weeks: 1 });
+  }
+
+  const diffMinutes = now.diff(latestScheduledTime, 'minutes').minutes;
+  const diffDays = now.diff(latestScheduledTime, 'days').days;
+
+  console.log(`[Checker] "${title}" was last scheduled on: ${latestScheduledTime.toISO()}`);
+  console.log(`[Checker] Now: ${now.toISO()} | Difference: ${diffMinutes.toFixed(1)} min (${diffDays.toFixed(1)} days)`);
+
+  if (!lastNotified && diffDays > 0) {
+    console.log(`[Checker] Skipping: missed the first scheduled check, will catch next.`);
+    return;
+  }
+
+  if (diffDays > MAX_DELAY_DAYS) {
+    console.log(`[Checker] Skipped: exceeded max delay of ${MAX_DELAY_DAYS} days.`);
+    return;
+  }
+
   const lastNotifiedDate = lastNotified
-    ? DateTime.fromJSDate(lastNotified).setZone('Asia/Tokyo')
+    ? DateTime.fromJSDate(lastNotified).setZone(timezone)
     : null;
-  if (lastNotifiedDate && lastNotifiedDate.hasSame(nowJST, 'day')) return;
 
-  // Cria Embed para notificação
+  if (lastNotifiedDate && lastNotifiedDate.hasSame(latestScheduledTime, 'day')) {
+    console.log(`[Checker] Already notified on the same day (${lastNotifiedDate.toISODate()}).`);
+    return;
+  }
+
+  console.log(`[Checker] ✅ Sending notification for "${title}" now...`);
+
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle(`🎬 New Episode: ${title}`)
@@ -46,20 +70,30 @@ async function checkAnimeEpisode(animeDoc, client) {
     .setFooter({ text: `Scheduled: ${schedule.day} at ${schedule.time} (${timezone})` })
     .setTimestamp();
 
-  // Envia DM para cada usuário
   for (const userId of notify) {
     try {
       const user = await client.users.fetch(userId);
       await user.send({ embeds: [embed] });
-      console.log(`✅ Notified user ${userId} about "${title}"`);
+      console.log(`✅ Notified user ${userId}`);
     } catch (err) {
-      console.error(`❌ Error notifying user ${userId}:`, err);
+      console.error(`❌ Error notifying ${userId}:`, err);
     }
   }
 
-  // Atualiza lastNotified para hoje
-  animeDoc.lastNotified = nowJST.toJSDate();
+  animeDoc.lastNotified = now.toJSDate();
   await animeDoc.save();
+  console.log(`[Checker] lastNotified updated for "${title}".`);
+}
+
+/**
+ * Calculates how many days to add to reach the target weekday.
+ * @param {string} targetDayName
+ * @returns {number}
+ */
+function getWeekdayOffset(targetDayName) {
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const index = days.indexOf(targetDayName);
+  return index !== -1 ? index : 0;
 }
 
 module.exports = checkAnimeEpisode;
