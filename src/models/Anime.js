@@ -6,8 +6,8 @@ const animeSchema = new mongoose.Schema({
   title: { type: String, required: true },
   notify: [String],
   schedule: {
-    day: { type: String, required: true },        // Ex: "Sunday"
-    time: { type: String, required: true },       // Ex: "09:30"
+    day: { type: String, required: true },        
+    time: { type: String, required: true },       
     timezone: { type: String, default: 'Asia/Tokyo' }
   },
   lastNotified: { type: Date, default: null }

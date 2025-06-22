@@ -1,5 +1,8 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+/**
+ * Reply with embed with the anime's info
+ */
 
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 const searchJikanAnime = require('../utils/searchAnime.js');        
 const fetchJikanDetailsById = require('../utils/fetchAnimeInfo.js'); 
 const getCurrentEpisodeCount = require('../utils/getCurrentEpisodeCount.js');
@@ -39,7 +42,7 @@ module.exports = {
     async execute(interaction) {
         const animeId = interaction.options.getString('anime');
         try {
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const jikanDetailsResponse = await fetchJikanDetailsById(animeId);
 
@@ -83,13 +86,13 @@ module.exports = {
                 if (interaction.deferred || interaction.replied) {
                     await interaction.followUp({ 
                         content: 'Unexpected error on processing your request.',
-                        ephemeral: true 
+                        flags: MessageFlags.Ephemeral
                     });
                 } 
                 else {
                 await interaction.reply({ 
                     content: 'Unexpected error on processing your request.',
-                    ephemeral: true 
+                    flags: MessageFlags.Ephemeral
                 });
             }
         }

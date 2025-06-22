@@ -1,15 +1,23 @@
+/** Add an anime to the 'notifyList' of an user.            
+ *  It keeps both User and Anime collections synched
+ *  If either user or anime doesn't exist in either collection, this command also instanciate one 
+ */
+
 const {
   SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle
+  ButtonStyle,
+  MessageFlags,
+  Message
 } = require('discord.js');
 
 const searchJikanAnime = require('../utils/searchAnime.js');        
 const fetchJikanDetailsById = require('../utils/fetchAnimeInfo.js'); 
 const Anime = require('../models/Anime.js');
-const { scheduleAnime } = require('../scheduler.js'); //
+const addAnimeToUserList = require('../utils/addAnimeToUserList.js');
+const { scheduleAnime } = require('../scheduler.js'); 
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -48,7 +56,7 @@ module.exports = {
     const userId = interaction.user.id;
 
     try {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       const jikanDetailsResponse = await fetchJikanDetailsById(animeId);
       if (!jikanDetailsResponse || !jikanDetailsResponse.data) {
@@ -112,8 +120,16 @@ module.exports = {
       try {
         const confirmation = await response.awaitMessageComponent({ filter: collectorFilter, time: 60_000 });
 
+        const wasAdded = await addAnimeToUserList(userId, animeId, 'notifyList');
+
+        if (!wasAdded) {
+          return await interaction.editReply({
+            content: `🚫 "${title}" is already added or the notification list is full (15 limit reached).`
+          });
+        }
+
         const query = { mal_id: animeId };
-        const animeDoc = await Anime.findOne(query);
+        let animeDoc = await Anime.findOne(query);
 
         const normalizedDay = broadcast.day?.trim().replace(/s$/i, '');
         const scheduleObj = {
@@ -141,7 +157,6 @@ module.exports = {
             embeds: [embed],
             components: []
           });
-
           await scheduleAnime(newDoc, interaction.client); // 🔄 agenda individual
 
         } else {
@@ -157,10 +172,9 @@ module.exports = {
             embeds: [embed],
             components: []
           });
-
-          await scheduleAnime(await Anime.findOne(query), interaction.client);
+          animeDoc = await Anime.findOne(query);
+          await scheduleAnime(animeDoc, interaction.client);
         }
-
       } catch (e) {
         console.error("Error on 'add' button: ", e);
         await interaction.editReply({
@@ -174,12 +188,12 @@ module.exports = {
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp({
           content: 'Unexpected error occurred while processing your request.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       } else {
         await interaction.reply({
           content: 'Unexpected error occurred while processing your request.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     }
