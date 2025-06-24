@@ -10,7 +10,6 @@ const {
   ButtonBuilder,
   ButtonStyle,
   MessageFlags,
-  Message
 } = require('discord.js');
 
 const searchJikanAnime = require('../utils/searchAnime.js');        
@@ -21,7 +20,7 @@ const { scheduleAnime } = require('../scheduler.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('notify')
+    .setName('notification-add')
     .setDescription('Get a DM notification when a new episode is released')
     .addStringOption(option =>
       option.setName('anime')
