@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Client, Collection, Events, GatewayIntentBits, ActivityType} = require('discord.js');
 
-const { setupTimersForAnimes } = require('./scheduler.js'); // Importa o scheduler
+const { setupTimersForAnimes } = require('./scheduler.js');
 
 const token = process.env.DISCORD_TOKEN;
 
@@ -27,7 +27,7 @@ for (const file of commandFiles) {
     }
 }
 
-// --- Evento de Bot Pronto ---
+// --- Bot Ready Event ---
 client.once(Events.ClientReady, async readyClient => {
     console.log(`✅ The bot is online as ${readyClient.user.tag}`);
     console.log('[SCHEDULER] Starting anime episode check timers...');
@@ -48,13 +48,13 @@ client.once(Events.ClientReady, async readyClient => {
     });
 });
 
-// --- Listener de Interação ---
+// --- Interaction Listener ---
 client.on('interactionCreate', async interaction => {
   const command = client.commands.get(interaction.commandName);
   if (!command) return;
 
   try {
-    // Trata autocomplete
+    // Handle autocomplete
     if (interaction.isAutocomplete()) {
       if (command.autocomplete) {
         await command.autocomplete(interaction);
@@ -62,7 +62,7 @@ client.on('interactionCreate', async interaction => {
       return;
     }
 
-    // Trata slash command normal
+    // Handle slash command
     if (interaction.isChatInputCommand()) {
       await command.execute(interaction);
     }
