@@ -103,6 +103,13 @@ async function scheduleAnime(animeDoc, client) {
  * @param {Discord.Client} client
  */
 async function runAndReschedule(animeDoc, client) {
+
+  const updatedDoc = await Anime.findOne({ mal_id: animeDoc.mal_id });
+  if (!updatedDoc) {
+    console.warn(`[Scheduler] Anime "${animeDoc.title}" (mal_id: ${animeDoc.mal_id}) was removed from the database. Canceling reschedule.`);
+    return;
+  }
+
   const title = animeDoc.title;
   console.log(`[Scheduler] ${DateTime.now().toISO()} - Running check for "${title}"...`);
 
@@ -123,8 +130,7 @@ async function runAndReschedule(animeDoc, client) {
 
   try {
     await checkAnimeEpisode(animeDoc, client);
-    animeDoc.lastNotified = new Date(); // garante Date, não ISO string
-    await animeDoc.save();
+    await Anime.updateOne({ mal_id: animeDoc.mal_id }, { lastNotified: new Date() });
     console.log(`[Scheduler] ${DateTime.now().toISO()} - Check completed for "${title}".`);
   } catch (err) {
     console.error(`[Scheduler] ${DateTime.now().toISO()} - Error checking episode for "${title}":`, err);
