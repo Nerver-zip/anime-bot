@@ -1,3 +1,4 @@
+const User = require('../models/User');
 /**
  * Adds an anime to a user's list. Creates the user if necessary.
  * 
@@ -6,7 +7,6 @@
  * @param {string} listKey - Name of the custom list (e.g., 'notifyList').
  * @returns {Promise<boolean>} - Returns true if anime was added, false otherwise
  */
-const User = require('../models/User');
 async function addAnimeToUserList(userId, animeId, listKey) {
   const userDoc = await User.findOne({ user_id: userId });
 
