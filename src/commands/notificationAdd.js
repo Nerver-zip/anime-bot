@@ -156,7 +156,7 @@ module.exports = {
             embeds: [embed],
             components: []
           });
-          await scheduleAnime(newDoc, interaction.client); // 🔄 agenda individual
+          await scheduleAnime(newDoc, interaction.client);
 
         } else {
           await Anime.updateOne(

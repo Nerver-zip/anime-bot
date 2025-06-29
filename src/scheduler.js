@@ -1,32 +1,72 @@
 const Anime = require('./models/Anime.js');
 const { DateTime } = require('luxon');
 const checkAnimeEpisode = require('./utils/checkAnimeEpisode.js');
+const fetchAnimeList = require('./utils/fetchAnimeList.js');
+const fetchAnimeInfo = require('./utils/fetchAnimeInfo.js');
 
 /**
- * Inicializa o agendamento para todos os animes no DB ao iniciar o bot.
+ * Init scheduling for all animes in DB.
  * @param {Discord.Client} client
  */
 async function setupTimersForAnimes(client) {
   console.log(`[Scheduler] ${DateTime.now().toISO()} - Initializing anime schedules...`);
 
-  const animes = await Anime.find({});
-  console.log(`[Scheduler] ${DateTime.now().toISO()} - Found ${animes.length} animes in the database.`);
+  const allAnimes = await Anime.find({});
+  console.log(`[Scheduler] ${DateTime.now().toISO()} - Found ${allAnimes.length} animes in the database.`);
 
-  animes.forEach(animeDoc => {
+  const malIdList = [];
+  const animeDocMap = new Map();
+
+  allAnimes.forEach(animeDoc => {
+    malIdList.push(animeDoc.mal_id);
+    animeDocMap.set(animeDoc.mal_id, animeDoc);
+  });
+
+  let fetchedAnimes = [];
+  try {
+    fetchedAnimes = await fetchAnimeList(malIdList);
+  } catch (err) {
+    console.error(`[Scheduler] ${DateTime.now().toISO()} - Failed to fetch anime list from API:`, err);
+    return;
+  }
+
+  const airingAnimes = fetchedAnimes.filter(anime => anime.data.status === 'Currently Airing');
+
+  airingAnimes.forEach(apiAnime => {
+    const animeDoc = animeDocMap.get(apiAnime.data.mal_id); // ← pega doc original
+    if (!animeDoc) {
+      console.warn(`[Scheduler] Could not find DB entry for mal_id: ${apiAnime.data.mal_id}`);
+      return;
+    }
+
     console.log(`[Scheduler] ${DateTime.now().toISO()} - Scheduling "${animeDoc.title}" (mal_id: ${animeDoc.mal_id})`);
     scheduleAnime(animeDoc, client);
   });
-
-  console.log(`[Scheduler] ${DateTime.now().toISO()} - All animes have been scheduled.`);
+  console.log(`[Scheduler] ${DateTime.now().toISO()} - All currently airing animes have been scheduled.`);
 }
 
+
 /**
- * Agenda o próximo check de um anime individual.
+ * Schedule next individual anime.
  * @param {Object} animeDoc - Documento mongoose do anime
  * @param {Discord.Client} client
  */
-function scheduleAnime(animeDoc, client) {
-  const { title, schedule, lastNotified } = animeDoc;
+
+async function scheduleAnime(animeDoc, client) {
+  const { mal_id, title, schedule, lastNotified } = animeDoc;
+  
+  let apiAnime;
+  try {
+    apiAnime = await fetchAnimeInfo(mal_id);
+  } catch (err) {
+    console.error(`[Scheduler] ${DateTime.now().toISO()} - Failed to fetch info for "${title}" (mal_id: ${mal_id}):`, err);
+    return;
+  }
+
+  if (apiAnime.data.status !== 'Currently Airing') {
+    console.warn("Anime is not currently airing.");
+    return;
+  }
 
   if (!schedule || !schedule.day || !schedule.time) {
     console.warn(`[Scheduler] ${DateTime.now().toISO()} - Anime "${title}" ignored due to invalid schedule.`);
@@ -58,18 +98,39 @@ function scheduleAnime(animeDoc, client) {
 }
 
 /**
- * Executa a verificação e agenda o próximo check.
+ * Verify and schedules next check.
  * @param {Object} animeDoc
  * @param {Discord.Client} client
  */
 async function runAndReschedule(animeDoc, client) {
+
+  const updatedDoc = await Anime.findOne({ mal_id: animeDoc.mal_id });
+  if (!updatedDoc) {
+    console.warn(`[Scheduler] Anime "${animeDoc.title}" (mal_id: ${animeDoc.mal_id}) was removed from the database. Canceling reschedule.`);
+    return;
+  }
+
   const title = animeDoc.title;
   console.log(`[Scheduler] ${DateTime.now().toISO()} - Running check for "${title}"...`);
 
+  let apiAnime;
+  try {
+    apiAnime = await fetchAnimeInfo(animeDoc.mal_id);
+  } catch (err) {
+    console.error(`[Scheduler] ${DateTime.now().toISO()} - Failed to re-fetch info for "${title}":`, err);
+    // Reagendar tentativa em 10 minutos
+    setTimeout(() => runAndReschedule(animeDoc, client), 1000 * 60 * 10);
+    return;
+  }
+
+  if (apiAnime.data.status !== 'Currently Airing') {
+    console.warn("Anime is not currently airing.");
+    return;
+  }
+
   try {
     await checkAnimeEpisode(animeDoc, client);
-    animeDoc.lastNotified = new Date(); // garante Date, não ISO string
-    await animeDoc.save();
+    await Anime.updateOne({ mal_id: animeDoc.mal_id }, { lastNotified: new Date() });
     console.log(`[Scheduler] ${DateTime.now().toISO()} - Check completed for "${title}".`);
   } catch (err) {
     console.error(`[Scheduler] ${DateTime.now().toISO()} - Error checking episode for "${title}":`, err);
@@ -98,10 +159,10 @@ async function runAndReschedule(animeDoc, client) {
 }
 
 /**
- * Calcula timestamp do próximo horário programado baseado no dia e hora.
+ * Calculates next time stamp.
  * @param {Object} schedule { day: string, time: string, timezone?: string }
- * @param {number} fromTimestamp - timestamp em ms para calcular a partir dele
- * @returns {number|null} timestamp em ms ou null se erro
+ * @param {number} fromTimestamp - timestamp in ms for calculations
+ * @returns {number|null} timestamp in ms or null if error
  */
 function getNextScheduleTime(schedule, fromTimestamp = Date.now()) {
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -129,15 +190,14 @@ function getNextScheduleTime(schedule, fromTimestamp = Date.now()) {
   const from = DateTime.fromMillis(fromTimestamp).setZone(zone);
   const targetTimeToday = from.set({ hour, minute, second: 0, millisecond: 0 });
 
-  const currentWeekday = from.weekday % 7; // 0 (Sunday) a 6 (Saturday)
+  const currentWeekday = from.weekday % 7; // 0 (Sunday) to 6 (Saturday)
   let daysToAdd = (dayIndex - currentWeekday + 7) % 7;
 
-  // Se for hoje e o horário ainda não passou, mantém hoje
   if (daysToAdd === 0 && targetTimeToday > from) {
     return targetTimeToday.toMillis();
   }
 
-  const nextTime = targetTimeToday.plus({ days: daysToAdd || 7 }); // se daysToAdd = 0 e hora já passou, joga pra próxima semana
+  const nextTime = targetTimeToday.plus({ days: daysToAdd || 7 }); // if daysToAdd = 0 and we missed, try again next week
   console.log(`[Scheduler] getNextScheduleTime - next scheduled time: ${nextTime.toISO()}`);
 
   return nextTime.toMillis();

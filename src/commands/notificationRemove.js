@@ -40,7 +40,7 @@ module.exports = {
         .filter(anime =>
           anime?.data?.title?.toLowerCase().includes(focusedValue.toLowerCase())
         )
-        .slice(0, 25)
+        .slice(0, 15)
         .map(anime => ({
           name: anime.data.title.length > 100
           ? anime.data.title.slice(0, 97) + '...'
