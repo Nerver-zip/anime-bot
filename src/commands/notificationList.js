@@ -82,7 +82,7 @@ module.exports = {
       });
     } 
     catch (error) {
-      console.error(err);
+      console.error(error);
       await interaction.editReply({
         content: '❌ An unexpected error occurred.'
       });

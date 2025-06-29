@@ -1,0 +1,215 @@
+/**
+ * Create a new list with up to 15 animes passed as arguments
+ */
+
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
+
+const searchJikanAnime = require('../utils/searchAnime.js');
+const addAnimeToUserList = require('../utils/addAnimeToUserList.js');
+const fetchAnimeList = require('../utils/fetchAnimeList.js');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('create-list')
+        .setDescription('Creates a new anime list')
+        .addStringOption(option =>
+            option.setName('listname')
+                .setDescription('Name of the list ')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime1')
+                .setDescription('anime 1')
+                .setRequired(false)
+                .setAutocomplete(true)
+
+        )
+        .addStringOption(option =>
+            option.setName('anime2')
+                .setDescription('anime 2')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime3')
+                .setDescription('anime 3')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime4')
+                .setDescription('anime 4')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime5')
+                .setDescription('anime 5')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime6')
+                .setDescription('anime 6')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime7')
+                .setDescription('anime 7')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime8')
+                .setDescription('anime 8')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime9')
+                .setDescription('anime 9')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime10')
+                .setDescription('anime 10')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime11')
+                .setDescription('anime 11')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime12')
+                .setDescription('anime 12')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime13')
+                .setDescription('anime 13')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime14')
+                .setDescription('anime 14')
+                .setRequired(false)
+                .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+            option.setName('anime15')
+                .setDescription('anime 15')
+                .setRequired(false)
+                .setAutocomplete(true)
+        ),
+
+    async autocomplete(interaction) {
+        const focused = interaction.options.getFocused(true);
+        const optionName = focused.name;
+        const searchTerm = focused.value;
+
+        const validFields = new Set([
+            'anime1', 'anime2', 'anime3', 'anime4', 'anime5',
+            'anime6', 'anime7', 'anime8', 'anime9', 'anime10',
+            'anime11', 'anime12', 'anime13', 'anime14', 'anime15',
+        ]);
+
+        if (!validFields.has(optionName) || !searchTerm)
+            return await interaction.respond([]);
+
+        try {
+            const jikanResponse = await searchJikanAnime(searchTerm);
+            if (!jikanResponse.data) return await interaction.respond([]);
+
+            const choices = jikanResponse.data.slice(0, 25).map(anime => {
+                const title = anime.title;
+                const name = title.length > 100 ? title.substring(0, 97) + '...' : title;
+                return { name, value: String(anime.mal_id) };
+            });
+
+            await interaction.respond(choices);
+        } catch (error) {
+            console.error('Autocomplete error (Jikan):', error);
+            await interaction.respond([]);
+        }
+    },
+
+    async execute(interaction) {
+        try {
+            await interaction.deferReply({flags: MessageFlags.Ephemeral});
+            const userId = interaction.user.id;
+            const listName = interaction.options.getString('listname');
+            const animeList = [];
+
+            for (let i = 1; i <= 15; i++) {
+                const anime = interaction.options.getString(`anime${i}`);
+                if (anime) animeList.push(anime);
+            }
+
+            if (/[_.$]/.test(listName)) {
+                return await interaction.reply({
+                    content: `❌ The list's name cannot contain '_', '.' or '$'.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            for(const anime of animeList){
+                const res = await addAnimeToUserList(userId, Number(anime), listName);
+                if (!res) {
+                    return await interaction.reply({
+                    content: `❌ Unexpected error on adding animes to list. Checkout what animes were added with /my-anime-list command`,
+                    flags: MessageFlags.Ephemeral
+                    });
+                }
+            }
+
+            const apiAnimeList = await fetchAnimeList(animeList);
+
+            if (!apiAnimeList) {
+              return await interaction.editReply({
+                content: `Error on fetching your list's information`
+              });
+            }
+        
+            if (apiAnimeList.length === 0) {
+              return await interaction.editReply({
+                content: `Your notification list is empty`
+              });
+            }
+            
+            let thumbnail;
+
+            const size = apiAnimeList.length;
+            const animeLines = apiAnimeList.slice(0, 15).map((anime, index) => {
+                const title = anime?.data?.title || 'Unknown title';
+                if(!thumbnail)
+                    thumbnail = anime.data?.images?.jpg?.large_image_url || anime.data?.images?.jpg?.image_url;
+                const url = anime.data?.url;
+                const linkTitle = url ? `[${title}](${url})` : title;
+
+                return `**${index + 1}** ${linkTitle}`;
+            });
+
+            const embed = new EmbedBuilder()
+              .setColor(0x5865F2)
+              .setTitle(`${listName} list created!`)
+              .setDescription(animeLines.join('\n'))
+              .setThumbnail(thumbnail)
+              .setFooter({ text: `${size} ${size === 1 ? 'anime was' : 'animes were'} added | Max 15` });
+    
+            await interaction.editReply({embeds: [embed]});
+        }
+        catch (error) {
+          console.error(error);
+          await interaction.editReply({
+            content: '❌ An unexpected error occurred.'
+          });
+        }
+    },
+};
