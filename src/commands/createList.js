@@ -7,6 +7,7 @@ const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js'
 const searchJikanAnime = require('../utils/searchAnime.js');
 const addAnimeToUserList = require('../utils/addAnimeToUserList.js');
 const fetchAnimeList = require('../utils/fetchAnimeList.js');
+const User = require('../models/User.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -146,6 +147,15 @@ module.exports = {
             const userId = interaction.user.id;
             const listName = interaction.options.getString('listname');
             const animeList = [];
+
+            const userDoc = await User.findOne({user_id: userId});
+
+            if (userDoc && userDoc.lists.has(listName)) {
+                return await interaction.reply({
+                    content: `❌ This list's name already exists! Checkout your current lists with /my-lists'.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
 
             for (let i = 1; i <= 15; i++) {
                 const anime = interaction.options.getString(`anime${i}`);
