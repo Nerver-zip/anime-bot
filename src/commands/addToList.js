@@ -187,7 +187,7 @@ module.exports = {
 
             if (userDoc && !userDoc.lists.has(listName)) {
                 return await interaction.editReply({
-                    content: `❌ This list's name doesn't exist! Checkout your current lists with /my-lists'.`,
+                    content: `❌ This list's name doesn't exist! Checkout your current lists with /my-lists.`,
                     flags: MessageFlags.Ephemeral
                 });
             }
@@ -204,30 +204,37 @@ module.exports = {
                 });
             }
 
-            for(const anime of animeList){
-                const res = await addAnimeToUserList(userId, Number(anime), listName);
-                if (!res) {
-                    return await interaction.editReply({
-                    content: `❌ Unexpected error on adding animes to list. Checkout what animes were added with /my-anime-list command`,
+            // Verifiy duplicates
+            const existingList = userDoc.lists.get(listName) || [];
+            const existingIds = new Set(existingList.map(anime => anime.id));
+            const animeIdsToAdd = animeList.map(Number);
+
+            const hasDuplicates = animeIdsToAdd.some(id => existingIds.has(id));
+            if (hasDuplicates) {
+                return await interaction.editReply({
+                    content: `❌ One or more of the selected animes are already in the list.`,
                     flags: MessageFlags.Ephemeral
+                });
+            }
+
+            const apiAnimeList = await fetchAnimeList(animeIdsToAdd);
+            if (!apiAnimeList || apiAnimeList.length === 0) {
+                return await interaction.editReply({
+                    content: `❌ Failed to fetch information about the animes.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            for (const animeData of apiAnimeList) {
+                const success = await addAnimeToUserList(userId, animeData, listName);
+                if (!success) {
+                    return await interaction.editReply({
+                        content: `❌ Unexpected error while adding an anime to the list.`,
+                        flags: MessageFlags.Ephemeral
                     });
                 }
             }
 
-            const apiAnimeList = await fetchAnimeList(animeList);
-
-            if (!apiAnimeList) {
-              return await interaction.editReply({
-                content: `Error on fetching your list's information`
-              });
-            }
-        
-            if (apiAnimeList.length === 0) {
-              return await interaction.editReply({
-                content: `Empty list. Add animes to see them here.`
-              });
-            }
-            
             let thumbnail;
 
             const size = apiAnimeList.length;

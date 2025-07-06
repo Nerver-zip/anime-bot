@@ -21,4 +21,12 @@ async function fetchAnimeList(ids) {
   return Promise.all(limitedFetches);
 }
 
+// Test module
+if (require.main === module) {
+    (async () => {
+        const anime = await fetchAnimeList(["53447", "1337", "30", "20"]);
+        console.dir(anime, { depth: null });
+    })();
+}
+
 module.exports = fetchAnimeList;
