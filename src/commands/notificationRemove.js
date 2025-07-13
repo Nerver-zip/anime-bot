@@ -13,6 +13,7 @@ const User = require('../models/User.js');
 const Anime = require('../models/Anime.js');
 const fetchAnimeInfo = require('../utils/fetchAnimeInfo.js');
 const fetchAnimeList = require('../utils/fetchAnimeList.js');
+const removeAnimeFromUserList = require('../utils/removeAnimeFromUserList.js');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -83,13 +84,7 @@ module.exports = {
         { $pull: { notify: userId } }
       );
 
-      //Remove anime from User notifyList
-      const user = await User.findOne({ user_id: userId });
-      if (!user) return;
-      const notifyList = user.lists.get('notifyList') || [];
-      const updatedList = notifyList.filter(id => String(id) !== animeId);
-      user.lists.set('notifyList', updatedList);
-      await user.save();
+      await removeAnimeFromUserList(userId, Number(animeId), 'notifyList');
 
       const embed = new EmbedBuilder()
           .setColor(0x5865F2)

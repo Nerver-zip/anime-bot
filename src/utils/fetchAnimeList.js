@@ -10,7 +10,7 @@ const fetchAnimeInfo = require('../utils/fetchAnimeInfo.js');
 
  // Limited to 3 requests per second according
 const limiter = new Bottleneck({
-  minTime: 350, // 350ms between calls
+  minTime: 600, // 350ms between calls
   maxConcurrent: 1,
 });
 
@@ -19,6 +19,14 @@ async function fetchAnimeList(ids) {
     limiter.schedule(() => fetchAnimeInfo(id))
   );
   return Promise.all(limitedFetches);
+}
+
+// Test module
+if (require.main === module) {
+    (async () => {
+        const anime = await fetchAnimeList(["53447", "1337", "30", "20","69"]);
+        console.dir(anime, { depth: null });
+    })();
 }
 
 module.exports = fetchAnimeList;

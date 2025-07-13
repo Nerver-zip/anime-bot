@@ -146,53 +146,49 @@ module.exports = {
             await interaction.deferReply({flags: MessageFlags.Ephemeral});
             const userId = interaction.user.id;
             const listName = interaction.options.getString('listname');
-            const animeList = [];
+            const fullAnimeList = [];
 
             const userDoc = await User.findOne({user_id: userId});
 
             if (userDoc && userDoc.lists.has(listName)) {
-                return await interaction.reply({
+                return await interaction.editReply({
                     content: `❌ This list's name already exists! Checkout your current lists with /my-lists'.`,
+                    flags: MessageFlags.Ephemeral
+                });
+            }
+
+            if (/[_.$]/.test(listName)) {
+                return await interaction.editReply({
+                    content: `❌ The list's name cannot contain '_', '.' or '$'.`,
                     flags: MessageFlags.Ephemeral
                 });
             }
 
             for (let i = 1; i <= 15; i++) {
                 const anime = interaction.options.getString(`anime${i}`);
-                if (anime) animeList.push(anime);
+                if (anime) fullAnimeList.push(anime);
             }
 
-            if (/[_.$]/.test(listName)) {
-                return await interaction.reply({
-                    content: `❌ The list's name cannot contain '_', '.' or '$'.`,
+            const uniqueAniList = [...new Set(fullAnimeList)];
+
+            const apiAnimeList = await fetchAnimeList(uniqueAniList);
+            if (!apiAnimeList || apiAnimeList.length === 0) {
+                return await interaction.editReply({
+                    content: `❌ Failed to fetch information about the animes.`,
                     flags: MessageFlags.Ephemeral
                 });
             }
 
-            for(const anime of animeList){
-                const res = await addAnimeToUserList(userId, Number(anime), listName);
+            for(const animeData of apiAnimeList){
+                const res = await addAnimeToUserList(userId, animeData, listName);
                 if (!res) {
-                    return await interaction.reply({
+                    return await interaction.editReply({
                     content: `❌ Unexpected error on adding animes to list. Checkout what animes were added with /my-anime-list command`,
                     flags: MessageFlags.Ephemeral
                     });
                 }
             }
-
-            const apiAnimeList = await fetchAnimeList(animeList);
-
-            if (!apiAnimeList) {
-              return await interaction.editReply({
-                content: `Error on fetching your list's information`
-              });
-            }
-        
-            if (apiAnimeList.length === 0) {
-              return await interaction.editReply({
-                content: `Your notification list is empty`
-              });
-            }
-            
+    
             let thumbnail;
 
             const size = apiAnimeList.length;
