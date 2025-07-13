@@ -4,7 +4,6 @@
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
 const fetchAnimeInfo = require('../utils/fetchAnimeInfo.js');
-const fetchAnimeList = require('../utils/fetchAnimeList.js');
 const User = require('../models/User.js');
 
 module.exports = {
@@ -61,21 +60,20 @@ module.exports = {
                     ]);
                 }
             
-                const animeList = await fetchAnimeList(currentList);
+                const animeList = userDoc.lists.get(selectedListName) || [];
                 const filtered = animeList
                   .filter(anime =>
-                    anime?.data?.title?.toLowerCase().includes(searchTerm.toLowerCase())
+                    anime.name.toLowerCase().includes(searchTerm.toLowerCase())
                   )
                   .slice(0, 15)
                   .map(anime => ({
-                    name: anime.data.title.length > 100
-                    ? anime.data.title.slice(0, 97) + '...'
-                    : anime.data.title,
-                    value: String(anime.data.mal_id), 
+                    name: anime.name.length > 100
+                      ? anime.name.slice(0, 97) + '...'
+                      : anime.name,
+                    value: String(anime.id),
                   }));
-                await interaction.respond(filtered);
+                return await interaction.respond(filtered);
             }
-            return await interaction.respond([]);
         } catch (error) {
             console.error('Autocomplete error:', error);
             return await interaction.respond([]);
@@ -121,7 +119,7 @@ module.exports = {
                 });
             }
 
-            if (!list.includes(Number(animeId))) {
+            if (!list.some(anime => anime.id === Number(animeId))) {
                 return await interaction.editReply({
                     content: `❌ This anime is not in the selected list.`,
                     flags: MessageFlags.Ephemeral
@@ -137,7 +135,7 @@ module.exports = {
             }
 
             //Delete anime from user list under provided key
-            const updatedList = list.filter(id => String(id) !== animeId);
+            const updatedList = list.filter(anime => anime.id !== Number(animeId));
             userDoc.lists.set(listName, updatedList);
             await userDoc.save();
         

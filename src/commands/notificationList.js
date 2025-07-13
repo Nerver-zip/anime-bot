@@ -34,14 +34,15 @@ module.exports = {
       }
 
       const notifyList = userDoc.lists.get('notifyList');
-
+          
       if (!notifyList || notifyList.length === 0) {
         return await interaction.editReply({
           content: `Your notification list is empty.`
         });
       }
-
-      const animes = await fetchAnimeList(notifyList);
+      
+      const animeIds = notifyList.map(anime => anime.id);
+      const animes = await fetchAnimeList(animeIds);
 
       if (!animes) {
         return await interaction.editReply({

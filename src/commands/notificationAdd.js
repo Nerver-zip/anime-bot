@@ -119,7 +119,7 @@ module.exports = {
       try {
         const confirmation = await response.awaitMessageComponent({ filter: collectorFilter, time: 60_000 });
 
-        const wasAdded = await addAnimeToUserList(userId, animeData, 'notifyList');
+        const wasAdded = await addAnimeToUserList(userId, jikanDetailsResponse, 'notifyList');
 
         if (!wasAdded) {
           return await interaction.editReply({
