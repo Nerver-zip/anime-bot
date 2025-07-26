@@ -48,66 +48,6 @@ module.exports = {
                 .setDescription('anime 5')
                 .setRequired(false)
                 .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime6')
-                .setDescription('anime 6')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime7')
-                .setDescription('anime 7')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime8')
-                .setDescription('anime 8')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime9')
-                .setDescription('anime 9')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime10')
-                .setDescription('anime 10')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime11')
-                .setDescription('anime 11')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime12')
-                .setDescription('anime 12')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime13')
-                .setDescription('anime 13')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime14')
-                .setDescription('anime 14')
-                .setRequired(false)
-                .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-            option.setName('anime15')
-                .setDescription('anime 15')
-                .setRequired(false)
-                .setAutocomplete(true)
         ),
 
     async autocomplete(interaction) {
