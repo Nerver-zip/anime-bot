@@ -75,8 +75,6 @@ module.exports = {
             }
             const validAnimeFields = new Set([
                 'anime1', 'anime2', 'anime3', 'anime4', 'anime5',
-                'anime6', 'anime7', 'anime8', 'anime9', 'anime10',
-                'anime11', 'anime12', 'anime13', 'anime14', 'anime15',
             ]);
 
             if (validAnimeFields.has(optionName)) {

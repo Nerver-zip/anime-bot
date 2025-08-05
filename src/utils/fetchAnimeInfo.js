@@ -44,7 +44,7 @@ async function fetchAnimeInfo(malId) {
 // Test module
 if (require.main === module) {
     (async () => {
-        const anime = await fetchAnimeInfo("53447");
+        const anime = await fetchAnimeInfo("59986");
         console.dir(anime, { depth: null });
     })();
 }
